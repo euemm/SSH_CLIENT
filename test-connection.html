@@ -20,7 +20,7 @@
         function testConnection() {
             log('Starting WebSocket connection test...');
             
-            const ws = new WebSocket('ws://localhost:8080/ssh');
+            const ws = new WebSocket('wss://euem.net:443/ssh');
             
             ws.onopen = () => {
                 log('WebSocket opened successfully');

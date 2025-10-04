@@ -67,7 +67,7 @@ export class SSHClient implements ISSHClient {
         
         // For client-side SSH, we'll use a WebSocket connection
         // This would typically connect to a WebSocket-to-SSH proxy server
-        const wsUrl = `ws://localhost:8080/ssh`
+        const wsUrl = `wss://euem.net:443/ssh`
         console.log('[SSHClient] Creating WebSocket connection to:', wsUrl)
         
         this.ws = new WebSocket(wsUrl)
@@ -184,7 +184,7 @@ export class SSHClient implements ISSHClient {
             
             if (event.code === 1006) {
               console.error('[SSHClient] Connection failed - WebSocket server not available')
-              safeReject(new Error('Cannot connect to WebSocket server at ws://localhost:8080/ssh. Please ensure the SSH proxy server is running.'))
+              safeReject(new Error('Cannot connect to WebSocket server at wss://euem.net:443/ssh. Please ensure the SSH proxy server is running.'))
             } else {
               console.log('[SSHClient] Rejecting with error for code:', event.code)
               safeReject(new Error(`WebSocket closed: ${reason} (Code: ${event.code})`))
