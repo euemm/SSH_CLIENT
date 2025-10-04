@@ -1,9 +1,9 @@
 // Simple WebSocket test to debug the connection issue
 import WebSocket from 'ws';
 
-console.log('Testing WebSocket connection to ws://localhost:8080/ssh');
+console.log('Testing WebSocket connection to wss://euem.net:443/ssh');
 
-const ws = new WebSocket('ws://localhost:8080/ssh');
+const ws = new WebSocket('wss://euem.net:443/ssh');
 
 ws.on('open', () => {
   console.log('✅ WebSocket connection opened');
