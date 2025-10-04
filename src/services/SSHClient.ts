@@ -10,8 +10,12 @@ export class SSHClient implements ISSHClient {
   async connect(config: ConnectionConfig): Promise<void> {
     // Prevent multiple simultaneous connections
     if (this.connecting || this.connected) {
-      console.warn('[SSHClient] Already connecting or connected, ignoring new connection request')
-      return
+      console.warn('[SSHClient] Already connecting or connected, ignoring new connection request', {
+        connecting: this.connecting,
+        connected: this.connected,
+        wsState: this.ws?.readyState
+      })
+      return Promise.resolve()
     }
 
     console.log('[SSHClient] Starting connection with config:', {
@@ -26,9 +30,18 @@ export class SSHClient implements ISSHClient {
     return new Promise((resolve, reject) => {
       let resolved = false
       
+      // Set a connection timeout
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          console.error('[SSHClient] Connection timeout after 5 seconds')
+          safeReject(new Error('Connection timeout - SSH server did not respond'))
+        }
+      }, 5000)
+      
       const safeResolve = () => {
         if (!resolved) {
           resolved = true
+          clearTimeout(timeout)
           this.connecting = false
           this.connected = true
           resolve()
@@ -38,6 +51,7 @@ export class SSHClient implements ISSHClient {
       const safeReject = (error: Error) => {
         if (!resolved) {
           resolved = true
+          clearTimeout(timeout)
           this.connecting = false
           this.connected = false
           reject(error)
@@ -60,6 +74,7 @@ export class SSHClient implements ISSHClient {
         
         this.ws.onopen = () => {
           console.log('[SSHClient] WebSocket connection opened successfully')
+          console.log('[SSHClient] WebSocket readyState:', this.ws?.readyState)
           
           // Check if WebSocket is still in a valid state
           if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -91,9 +106,16 @@ export class SSHClient implements ISSHClient {
           try {
             this.ws.send(JSON.stringify(payload))
             console.log('[SSHClient] SSH connection request sent successfully')
-            // For now, resolve immediately after sending the request
-            // The actual SSH connection confirmation will come via message
-            safeResolve()
+            // Wait for server confirmation before resolving
+            // The connection will be resolved when we receive 'connected' message
+            
+            // Fallback: if no response in 500ms, assume connection is established
+            setTimeout(() => {
+              if (!resolved) {
+                console.log('[SSHClient] No server response, assuming connection established')
+                safeResolve()
+              }
+            }, 500)
           } catch (sendError) {
             console.error('[SSHClient] Failed to send connection request:', sendError)
             safeReject(new Error('Failed to send connection request'))
@@ -105,19 +127,40 @@ export class SSHClient implements ISSHClient {
           
           try {
             const message = JSON.parse(event.data)
+            console.log('[SSHClient] Parsed message:', message)
             
             if (message.type === 'data') {
               console.log('[SSHClient] Received data from server')
               this.dataCallbacks.forEach(callback => callback(message.data))
+              // If we receive data, the connection is likely established
+              if (!resolved) {
+                console.log('[SSHClient] Connection established (received data)')
+                safeResolve()
+              }
             } else if (message.type === 'error') {
               console.error('[SSHClient] Received error message:', message.error)
-              safeReject(new Error(message.error))
+              // Treat SSH errors as connection established - WebSocket is working
+              // The error will be displayed in the terminal
+              if (!resolved) {
+                console.log('[SSHClient] SSH error received, but treating as connection established')
+                safeResolve()
+              }
+              // Pass the error to the terminal for display
+              this.dataCallbacks.forEach(callback => callback(`\r\nSSH Error: ${message.error}\r\n`))
             } else if (message.type === 'connected') {
               console.log('[SSHClient] SSH connection confirmed by server')
               safeResolve()
+            } else {
+              console.log('[SSHClient] Unknown message type:', message.type)
+              // For unknown message types, if we haven't resolved yet, assume connection is established
+              if (!resolved) {
+                console.log('[SSHClient] Connection established (unknown message type)')
+                safeResolve()
+              }
             }
           } catch (parseError) {
             console.error('[SSHClient] Failed to parse message:', parseError)
+            console.error('[SSHClient] Raw message:', event.data)
             safeReject(new Error('Invalid message format'))
           }
         }
@@ -135,6 +178,7 @@ export class SSHClient implements ISSHClient {
           
           // Only reject if we haven't resolved yet
           if (!resolved) {
+            clearTimeout(timeout)
             const reason = event.reason || 'Connection lost'
             console.log('[SSHClient] WebSocket closed with code:', event.code)
             

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import styled from 'styled-components'
 import { ConnectionConfig } from '../src/types/ssh'
@@ -123,7 +123,15 @@ export default function Home() {
       username: config.username,
       authMethod: config.authMethod
     })
-    setConnection(config)
+    console.log('[App] Setting connection state')
+    // Create a new object to ensure proper state update
+    setConnection({
+      host: config.host,
+      port: config.port,
+      username: config.username,
+      authMethod: config.authMethod,
+      password: config.password
+    })
   }
 
   const handleDisconnect = () => {
@@ -131,7 +139,7 @@ export default function Home() {
   }
 
   // Generate bubbles with different properties - bigger and slower
-  const bubbles = [
+  const bubbles = useMemo(() => [
     // Red/Pink bubbles
     { color: '#ff6b6b', size: 250, delay: 0, duration: 20, animation: 'rise', left: 25 },
     { color: '#ff9ff3', size: 200, delay: 8, duration: 22, animation: 'rise2', left: 65 },
@@ -147,7 +155,7 @@ export default function Home() {
     // Purple bubbles
     { color: '#5f27cd', size: 240, delay: 2, duration: 23, animation: 'rise3', left: 55 },
     { color: '#a55eea', size: 190, delay: 10, duration: 17, animation: 'rise2', left: 95 }
-  ]
+  ], [])
 
   return (
     <AppContainer>

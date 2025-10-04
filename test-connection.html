@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSH Connection Test</title>
+</head>
+<body>
+    <h1>SSH Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="logs"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message) {
+            console.log(message);
+            logsDiv.innerHTML += '<div>' + new Date().toISOString() + ': ' + message + '</div>';
+        }
+        
+        function testConnection() {
+            log('Starting WebSocket connection test...');
+            
+            const ws = new WebSocket('ws://localhost:8080/ssh');
+            
+            ws.onopen = () => {
+                log('WebSocket opened successfully');
+                statusDiv.textContent = 'WebSocket Connected';
+                
+                const payload = {
+                    type: 'connect',
+                    config: {
+                        host: 'localhost',
+                        port: 22,
+                        username: 'test',
+                        authMethod: 'password',
+                        password: 'test'
+                    }
+                };
+                
+                log('Sending connection request: ' + JSON.stringify(payload));
+                ws.send(JSON.stringify(payload));
+            };
+            
+            ws.onmessage = (event) => {
+                log('Received message: ' + event.data);
+                try {
+                    const message = JSON.parse(event.data);
+                    log('Parsed message: ' + JSON.stringify(message));
+                    
+                    if (message.type === 'connected') {
+                        statusDiv.textContent = 'SSH Connection Established';
+                        log('SSH connection confirmed!');
+                    } else if (message.type === 'data') {
+                        statusDiv.textContent = 'Receiving Data';
+                        log('Received SSH data: ' + message.data.substring(0, 100));
+                    } else if (message.type === 'error') {
+                        statusDiv.textContent = 'Connection Error';
+                        log('SSH error: ' + message.error);
+                    }
+                } catch (e) {
+                    log('Error parsing message: ' + e.message);
+                }
+            };
+            
+            ws.onclose = (event) => {
+                log('WebSocket closed: ' + event.code + ' ' + event.reason);
+                statusDiv.textContent = 'Connection Closed';
+            };
+            
+            ws.onerror = (error) => {
+                log('WebSocket error: ' + error);
+                statusDiv.textContent = 'Connection Error';
+            };
+        }
+        
+        // Start test when page loads
+        testConnection();
+    </script>
+</body>
+</html>

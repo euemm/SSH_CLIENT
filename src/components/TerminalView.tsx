@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -261,15 +261,54 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
   const terminalInstance = useRef<Terminal | null>(null)
   const fitAddon = useRef<FitAddon | null>(null)
   const sshClient = useRef<SSHClient | null>(null)
-  const [, setIsConnected] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('Connecting...')
   const hasAttemptedConnection = useRef(false)
   const isCleaningUp = useRef(false)
+  const hasEstablishedConnection = useRef(false)
+  const isMounted = useRef(false)
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const connectionId = useRef<string | null>(null)
+
+  // Memoize connection to prevent unnecessary re-renders
+  // Don't include password in dependencies as it can change reference even with same value
+  const memoizedConnection = useMemo(() => connection, [
+    connection.host,
+    connection.port,
+    connection.username,
+    connection.authMethod
+    // Explicitly exclude connection.password to prevent unnecessary re-renders
+  ])
 
   useEffect(() => {
+    // Create a unique connection ID to track this specific connection attempt
+    const currentConnectionId = `${memoizedConnection.host}:${memoizedConnection.port}:${memoizedConnection.username}:${Date.now()}`
+    
+    console.log('[TerminalView] useEffect triggered', {
+      terminalRefExists: !!terminalRef.current,
+      isMounted: isMounted.current,
+      connection: memoizedConnection.host + ':' + memoizedConnection.port,
+      currentConnectionId,
+      previousConnectionId: connectionId.current
+    })
+    
     if (!terminalRef.current) return
     
-    console.log('[TerminalView] UseEffect running - initializing terminal')
+    // Prevent multiple mounts - don't reinitialize if already mounted
+    if (isMounted.current) {
+      console.log('[TerminalView] Component already mounted, skipping re-initialization')
+      return
+    }
+    
+    // Set mounted flag immediately to prevent race conditions
+    isMounted.current = true
+    connectionId.current = currentConnectionId
+    
+    console.log('[TerminalView] UseEffect running - initializing terminal', {
+      connection: memoizedConnection.host + ':' + memoizedConnection.port,
+      hasAttemptedConnection: hasAttemptedConnection.current,
+      isCleaningUp: isCleaningUp.current
+    })
     isCleaningUp.current = false
 
     // Clean up any existing terminal instance first
@@ -372,6 +411,7 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
 
     const handleClose = () => {
       if (!isCleaningUp.current) {
+        console.log('[TerminalView] Connection closed - checking if this is expected')
         setIsConnected(false)
         setConnectionStatus('Disconnected')
         if (terminalInstance.current) {
@@ -382,11 +422,16 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
           }
         }
         
-        // Return to connection form when connection is closed unexpectedly
-        setTimeout(() => {
-          console.log('[TerminalView] Returning to connection form due to connection close')
-          onDisconnect()
-        }, 2000)
+        // Only return to connection form if the connection was actually established
+        // This prevents premature disconnection during initial connection attempts
+        if (hasEstablishedConnection.current) {
+          setTimeout(() => {
+            console.log('[TerminalView] Returning to connection form due to established connection close')
+            onDisconnect()
+          }, 2000)
+        } else {
+          console.log('[TerminalView] Connection closed before establishment, not returning to form')
+        }
       }
     }
 
@@ -397,14 +442,23 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
     const connectToSSH = async () => {
       try {
         console.log('[TerminalView] Initiating SSH connection to:', {
-          host: connection.host,
-          port: connection.port,
-          username: connection.username
+          host: memoizedConnection.host,
+          port: memoizedConnection.port,
+          username: memoizedConnection.username
         })
         setConnectionStatus('Connecting...')
-        await client.connect(connection)
+        await client.connect(memoizedConnection)
         setIsConnected(true)
         setConnectionStatus('Connected')
+        hasEstablishedConnection.current = true
+        
+        // Clear any pending error timeout since connection succeeded
+        if (errorTimeoutRef.current) {
+          console.log('[TerminalView] Clearing error timeout - connection succeeded')
+          clearTimeout(errorTimeoutRef.current)
+          errorTimeoutRef.current = null
+        }
+        
         console.log('[TerminalView] SSH connection established successfully')
         
         // Focus terminal
@@ -415,6 +469,18 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
         }
       } catch (error) {
         console.error('[TerminalView] SSH connection failed:', error)
+        console.error('[TerminalView] Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          type: typeof error
+        })
+        
+        // Check if we're already connected (successful connection happened before error)
+        if (isConnected || hasEstablishedConnection.current) {
+          console.log('[TerminalView] Connection error after successful connection - ignoring')
+          return
+        }
+        
         setConnectionStatus('Connection failed')
         
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -429,20 +495,47 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
         }
         
         // Return to connection form after a short delay
-        setTimeout(() => {
+        errorTimeoutRef.current = setTimeout(() => {
           console.log('[TerminalView] Returning to connection form due to connection failure')
           onDisconnect()
         }, 3000)
       }
     }
 
-    // Only attempt connection once per mount
-    if (!hasAttemptedConnection.current) {
+    // Only attempt connection once per mount and if not already connected
+    if (!hasAttemptedConnection.current && !isConnected) {
       console.log('[TerminalView] Component mounted, starting connection...')
+      console.log('[TerminalView] Connection attempt flags:', {
+        hasAttemptedConnection: hasAttemptedConnection.current,
+        isConnected: isConnected,
+        isMounted: isMounted.current,
+        isCleaningUp: isCleaningUp.current,
+        connectionId: connectionId.current
+      })
       hasAttemptedConnection.current = true
-      connectToSSH()
+      
+      // Use setTimeout to ensure the terminal is fully initialized before connecting
+      setTimeout(() => {
+        // Double-check that we're still the same connection attempt
+        if (connectionId.current === currentConnectionId && !isCleaningUp.current) {
+          console.log('[TerminalView] Proceeding with connection for ID:', currentConnectionId)
+          connectToSSH()
+        } else {
+          console.log('[TerminalView] Connection cancelled - ID mismatch or cleanup in progress', {
+            currentConnectionId,
+            storedConnectionId: connectionId.current,
+            isCleaningUp: isCleaningUp.current
+          })
+        }
+      }, 100)
     } else {
-      console.log('[TerminalView] Connection already attempted, skipping')
+      console.log('[TerminalView] Connection already attempted or connected, skipping', {
+        hasAttemptedConnection: hasAttemptedConnection.current,
+        isConnected: isConnected,
+        isMounted: isMounted.current,
+        isCleaningUp: isCleaningUp.current,
+        connectionId: connectionId.current
+      })
     }
 
     // Handle terminal input
@@ -519,10 +612,28 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
         }
       }, 0)
       
-      // Reset connection attempt flag for next mount
-      hasAttemptedConnection.current = false
+      // Clear any pending error timeout
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current)
+        errorTimeoutRef.current = null
+      }
+      
+      // DO NOT reset these flags in cleanup - they should only be reset on actual component unmount
+      // This prevents race conditions where cleanup runs but component is remounted
+      console.log('[TerminalView] Cleanup complete - preserving mount state to prevent race conditions')
     }
-  }, [connection])
+  }, [memoizedConnection])
+
+  // Separate useEffect to handle component unmount - resets flags only on actual unmount
+  useEffect(() => {
+    return () => {
+      console.log('[TerminalView] Component unmounting - resetting flags')
+      // Only reset flags on actual component unmount, not during cleanup
+      hasAttemptedConnection.current = false
+      hasEstablishedConnection.current = false
+      isMounted.current = false
+    }
+  }, [])
 
   const handleDisconnect = () => {
     if (sshClient.current) {
@@ -542,7 +653,7 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
     <TerminalContainer>
       <TerminalHeader>
         <ConnectionInfo>
-          <span>{connection.username}@{connection.host}:{connection.port}</span>
+          <span>{memoizedConnection.username}@{memoizedConnection.host}:{memoizedConnection.port}</span>
         </ConnectionInfo>
         <TerminalActions>
           <ActionButton onClick={handleDisconnect} title="Disconnect">
