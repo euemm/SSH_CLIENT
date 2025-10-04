@@ -276,7 +276,9 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
     connection.host,
     connection.port,
     connection.username,
-    connection.authMethod
+    connection.authMethod,
+    connection.wsUsername,
+    connection.wsPassword
     // Explicitly exclude connection.password to prevent unnecessary re-renders
   ])
 

@@ -35,6 +35,36 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Configuration
+
+This project uses environment variables for configuration. You can customize the WebSocket endpoint and authentication credentials by editing the `.env` file:
+
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit the configuration
+nano .env
+```
+
+### Environment Variables
+
+- `WEBSOCKET_ENDPOINT`: The WebSocket server endpoint (default: `wss://euem.net:443`)
+- `WEBSOCKET_AUTH_ENDPOINT`: The HTTP authentication endpoint (default: `https://euem.net:443/auth/login`)
+- `AUTH_USERNAME`: Username for authentication (leave empty to use form inputs)
+- `AUTH_PASSWORD`: Password for authentication (leave empty to use form inputs)
+
+### Connection Form
+
+The SSH client now includes a connection form with the following fields:
+- **Host**: SSH server hostname or IP address
+- **Username**: SSH username
+- **Password**: SSH password
+- **WebSocket Username**: Username for WebSocket authentication
+- **WebSocket Password**: Password for WebSocket authentication
+
+The configuration is automatically generated from environment variables when you run `npm run dev` or `npm run build`. The generated `public/config.json` file is used by the client-side code.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

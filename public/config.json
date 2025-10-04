@@ -1,0 +1,10 @@
+{
+  "websocket": {
+    "endpoint": "ws://localhost:8080",
+    "authEndpoint": "http://localhost:8080/auth/login"
+  },
+  "auth": {
+    "username": "",
+    "password": ""
+  }
+}

@@ -121,16 +121,20 @@ export default function Home() {
       host: config.host,
       port: config.port,
       username: config.username,
-      authMethod: config.authMethod
+      authMethod: config.authMethod,
+      wsUsername: config.wsUsername,
+      wsPassword: config.wsPassword ? '[REDACTED]' : '[EMPTY]'
     })
     console.log('[App] Setting connection state')
-    // Create a new object to ensure proper state update
+    // Create a new object to ensure proper state update with all fields
     setConnection({
       host: config.host,
       port: config.port,
       username: config.username,
       authMethod: config.authMethod,
-      password: config.password
+      password: config.password,
+      wsUsername: config.wsUsername,
+      wsPassword: config.wsPassword
     })
   }
 

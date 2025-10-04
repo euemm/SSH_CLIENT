@@ -246,6 +246,8 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
   // Fixed port to 22 - removed port input
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [wsUsername, setWsUsername] = useState('')
+  const [wsPassword, setWsPassword] = useState('')
   // Removed privateKey state - password only
   // Force password authentication only
 
@@ -253,6 +255,7 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
   useEffect(() => {
     const savedHost = getCookie('ssh_host')
     const savedUsername = getCookie('ssh_username')
+    const savedWsUsername = getCookie('ws_username')
     
     if (savedHost) {
       setHost(savedHost)
@@ -260,20 +263,50 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
     if (savedUsername) {
       setUsername(savedUsername)
     }
+    if (savedWsUsername) {
+      setWsUsername(savedWsUsername)
+    }
   }, [])
+  
+  // Debug: Monitor state changes
+  useEffect(() => {
+    console.log('[ConnectionForm] State updated:', {
+      host,
+      username,
+      password: password ? '[REDACTED]' : '[EMPTY]',
+      wsUsername,
+      wsPassword: wsPassword ? '[REDACTED]' : '[EMPTY]'
+    })
+  }, [host, username, password, wsUsername, wsPassword])
+  
   const [isConnecting, setIsConnecting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!host || !username || !password) {
-      console.log('[ConnectionForm] Validation failed: Missing required fields')
+    console.log('[ConnectionForm] Form submitted with values:', {
+      host,
+      username,
+      password: password ? '[REDACTED]' : '[EMPTY]',
+      wsUsername,
+      wsPassword: wsPassword ? '[REDACTED]' : '[EMPTY]'
+    })
+    
+    if (!host || !username || !password || !wsUsername || !wsPassword) {
+      console.log('[ConnectionForm] Validation failed: Missing required fields', {
+        hasHost: !!host,
+        hasUsername: !!username,
+        hasPassword: !!password,
+        hasWsUsername: !!wsUsername,
+        hasWsPassword: !!wsPassword
+      })
       return
     }
 
-    // Save host and username to cookies
+    // Save host, username, and WebSocket username to cookies
     setCookie('ssh_host', host)
     setCookie('ssh_username', username)
+    setCookie('ws_username', wsUsername)
 
     console.log('[ConnectionForm] Form submitted - Starting connection process')
     setIsConnecting(true)
@@ -283,14 +316,18 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
       port: 22,
       username,
       authMethod: 'password',
-      password
+      password,
+      wsUsername,
+      wsPassword
     }
 
     console.log('[ConnectionForm] Connection config:', {
       host: config.host,
       port: config.port,
       username: config.username,
-      authMethod: config.authMethod
+      authMethod: config.authMethod,
+      wsUsername: config.wsUsername,
+      wsPassword: config.wsPassword ? '[REDACTED]' : '[EMPTY]'
     })
 
     try {
@@ -354,11 +391,45 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
               required
             />
           </FormGroup>
+
+          <FormGroup>
+            <Label>
+              <User size={16} />
+              WebSocket Username
+            </Label>
+            <Input
+              type="text"
+              placeholder="admin"
+              value={wsUsername}
+              onChange={(e) => {
+                console.log('[ConnectionForm] WebSocket username changed:', e.target.value)
+                setWsUsername(e.target.value)
+              }}
+              required
+            />
+          </FormGroup>
+
+          <FormGroup>
+            <Label>
+              <Lock size={16} />
+              WebSocket Password
+            </Label>
+            <Input
+              type="password"
+              placeholder="WebSocket Password"
+              value={wsPassword}
+              onChange={(e) => {
+                console.log('[ConnectionForm] WebSocket password changed:', e.target.value ? '[REDACTED]' : '[EMPTY]')
+                setWsPassword(e.target.value)
+              }}
+              required
+            />
+          </FormGroup>
         </form>
       </FormContent>
       
       <ButtonContainer>
-        <ConnectButton type="submit" disabled={isConnecting} onClick={handleSubmit}>
+        <ConnectButton type="button" disabled={isConnecting} onClick={handleSubmit}>
           {isConnecting ? 'Connecting...' : 'Connect'}
         </ConnectButton>
       </ButtonContainer>

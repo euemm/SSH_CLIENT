@@ -6,16 +6,18 @@
     "node": ">=18.18.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "npm run generate-config && next dev",
+    "build": "npm run generate-config && next build",
     "start": "npx serve@latest out",
     "lint": "eslint . --ext .ts,.tsx",
-    "export": "next build"
+    "export": "next build",
+    "generate-config": "node scripts/generate-config.js"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/xterm": "^5.5.0",
+    "dotenv": "^17.2.3",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
     "react": "^18.3.0",

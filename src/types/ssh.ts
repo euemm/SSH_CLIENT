@@ -5,6 +5,8 @@ export interface ConnectionConfig {
   password?: string
   privateKey?: string
   authMethod: 'password' | 'key'
+  wsUsername: string
+  wsPassword: string
 }
 
 export interface SSHClient {

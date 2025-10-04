@@ -1,4 +1,5 @@
 import { ConnectionConfig, SSHClient as ISSHClient } from '../types/ssh'
+import { getClientConfig } from '../config/env'
 
 export class SSHClient implements ISSHClient {
   private ws: WebSocket | null = null
@@ -6,15 +7,22 @@ export class SSHClient implements ISSHClient {
   private connecting = false
   private dataCallbacks: ((data: string) => void)[] = []
   private closeCallbacks: (() => void)[] = []
+  private isAuthenticated = false
+  private currentConfig: ConnectionConfig | null = null
+  private appConfig: any = null
+
+  // Initialize configuration
+  private async initializeConfig() {
+    if (!this.appConfig) {
+      this.appConfig = await getClientConfig()
+    }
+    return this.appConfig
+  }
 
   async connect(config: ConnectionConfig): Promise<void> {
     // Prevent multiple simultaneous connections
     if (this.connecting || this.connected) {
-      console.warn('[SSHClient] Already connecting or connected, ignoring new connection request', {
-        connecting: this.connecting,
-        connected: this.connected,
-        wsState: this.ws?.readyState
-      })
+      console.warn('[SSHClient] Already connecting or connected, ignoring new connection request')
       return Promise.resolve()
     }
 
@@ -22,21 +30,25 @@ export class SSHClient implements ISSHClient {
       host: config.host,
       port: config.port,
       username: config.username,
-      authMethod: config.authMethod
+      authMethod: config.authMethod,
+      wsUsername: config.wsUsername,
+      wsPassword: config.wsPassword ? '[REDACTED]' : '[EMPTY]'
     })
     
+    this.currentConfig = config
+    console.log('[SSHClient] Current config set:', this.currentConfig)
     this.connecting = true
     
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       let resolved = false
       
       // Set a connection timeout
       const timeout = setTimeout(() => {
         if (!resolved) {
-          console.error('[SSHClient] Connection timeout after 5 seconds')
+          console.error('[SSHClient] Connection timeout after 10 seconds')
           safeReject(new Error('Connection timeout - SSH server did not respond'))
         }
-      }, 5000)
+      }, 10000)
       
       const safeResolve = () => {
         if (!resolved) {
@@ -65,61 +77,18 @@ export class SSHClient implements ISSHClient {
           this.ws = null
         }
         
-        // For client-side SSH, we'll use a WebSocket connection
-        // This would typically connect to a WebSocket-to-SSH proxy server
-        const wsUrl = `wss://euem.net:443/ssh`
+        // Initialize configuration and create WebSocket connection
+        const appConfig = await this.initializeConfig()
+        const wsUrl = appConfig.websocket.endpoint
         console.log('[SSHClient] Creating WebSocket connection to:', wsUrl)
         
         this.ws = new WebSocket(wsUrl)
         
         this.ws.onopen = () => {
           console.log('[SSHClient] WebSocket connection opened successfully')
-          console.log('[SSHClient] WebSocket readyState:', this.ws?.readyState)
           
-          // Check if WebSocket is still in a valid state
-          if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.error('[SSHClient] WebSocket is not in OPEN state')
-            safeReject(new Error('WebSocket connection lost'))
-            return
-          }
-          
-          // Send connection configuration
-          const payload = {
-            type: 'connect',
-            config: {
-              host: config.host,
-              port: config.port,
-              username: config.username,
-              password: config.password,
-              privateKey: config.privateKey,
-              authMethod: config.authMethod
-            }
-          }
-          console.log('[SSHClient] Sending SSH connection request:', {
-            type: payload.type,
-            host: config.host,
-            port: config.port,
-            username: config.username,
-            authMethod: config.authMethod
-          })
-          
-          try {
-            this.ws.send(JSON.stringify(payload))
-            console.log('[SSHClient] SSH connection request sent successfully')
-            // Wait for server confirmation before resolving
-            // The connection will be resolved when we receive 'connected' message
-            
-            // Fallback: if no response in 500ms, assume connection is established
-            setTimeout(() => {
-              if (!resolved) {
-                console.log('[SSHClient] No server response, assuming connection established')
-                safeResolve()
-              }
-            }, 500)
-          } catch (sendError) {
-            console.error('[SSHClient] Failed to send connection request:', sendError)
-            safeReject(new Error('Failed to send connection request'))
-          }
+          // Try to authenticate via HTTP first (this will set a cookie)
+          this.authenticateViaHTTP(safeResolve, safeReject)
         }
         
         this.ws.onmessage = (event) => {
@@ -129,39 +98,10 @@ export class SSHClient implements ISSHClient {
             const message = JSON.parse(event.data)
             console.log('[SSHClient] Parsed message:', message)
             
-            if (message.type === 'data') {
-              console.log('[SSHClient] Received data from server')
-              this.dataCallbacks.forEach(callback => callback(message.data))
-              // If we receive data, the connection is likely established
-              if (!resolved) {
-                console.log('[SSHClient] Connection established (received data)')
-                safeResolve()
-              }
-            } else if (message.type === 'error') {
-              console.error('[SSHClient] Received error message:', message.error)
-              // Treat SSH errors as connection established - WebSocket is working
-              // The error will be displayed in the terminal
-              if (!resolved) {
-                console.log('[SSHClient] SSH error received, but treating as connection established')
-                safeResolve()
-              }
-              // Pass the error to the terminal for display
-              this.dataCallbacks.forEach(callback => callback(`\r\nSSH Error: ${message.error}\r\n`))
-            } else if (message.type === 'connected') {
-              console.log('[SSHClient] SSH connection confirmed by server')
-              safeResolve()
-            } else {
-              console.log('[SSHClient] Unknown message type:', message.type)
-              // For unknown message types, if we haven't resolved yet, assume connection is established
-              if (!resolved) {
-                console.log('[SSHClient] Connection established (unknown message type)')
-                safeResolve()
-              }
-            }
+            this.handleMessage(message, safeResolve, safeReject)
           } catch (parseError) {
             console.error('[SSHClient] Failed to parse message:', parseError)
             console.error('[SSHClient] Raw message:', event.data)
-            safeReject(new Error('Invalid message format'))
           }
         }
         
@@ -174,9 +114,9 @@ export class SSHClient implements ISSHClient {
           
           this.connected = false
           this.connecting = false
+          this.isAuthenticated = false
           this.ws = null
           
-          // Only reject if we haven't resolved yet
           if (!resolved) {
             clearTimeout(timeout)
             const reason = event.reason || 'Connection lost'
@@ -184,13 +124,11 @@ export class SSHClient implements ISSHClient {
             
             if (event.code === 1006) {
               console.error('[SSHClient] Connection failed - WebSocket server not available')
-              safeReject(new Error('Cannot connect to WebSocket server at wss://euem.net:443/ssh. Please ensure the SSH proxy server is running.'))
+              safeReject(new Error('Cannot connect to WebSocket server. Please ensure the server is running.'))
             } else {
               console.log('[SSHClient] Rejecting with error for code:', event.code)
               safeReject(new Error(`WebSocket closed: ${reason} (Code: ${event.code})`))
             }
-          } else {
-            console.log('[SSHClient] Connection already resolved, ignoring close event')
           }
           
           this.closeCallbacks.forEach(callback => callback())
@@ -198,9 +136,6 @@ export class SSHClient implements ISSHClient {
         
         this.ws.onerror = (error) => {
           console.error('[SSHClient] WebSocket error occurred:', error)
-          console.log('[SSHClient] Error type:', error.type)
-          console.log('[SSHClient] Resolved status:', resolved)
-          // Error will be handled by onclose event
         }
         
       } catch (error) {
@@ -208,6 +143,173 @@ export class SSHClient implements ISSHClient {
         safeReject(error instanceof Error ? error : new Error('Unknown error'))
       }
     })
+  }
+
+  // Function to authenticate via HTTP and get cookie
+  private async authenticateViaHTTP(safeResolve: () => void, safeReject: (error: Error) => void) {
+    let wsCredentials: { username: string; password: string } | null = null
+    
+    try {
+      console.log('[SSHClient] Attempting HTTP authentication...')
+      console.log('[SSHClient] Current config:', this.currentConfig)
+      
+      const appConfig = await this.initializeConfig()
+      console.log('[SSHClient] App config:', appConfig)
+      
+      const credentials = {
+        username: this.currentConfig?.wsUsername || appConfig.auth.username,
+        password: this.currentConfig?.wsPassword || appConfig.auth.password
+      }
+      
+      console.log('[SSHClient] Using credentials:', {
+        username: credentials.username,
+        password: credentials.password ? '[REDACTED]' : '[EMPTY]'
+      })
+      
+      if (!credentials.username || !credentials.password) {
+        console.error('[SSHClient] WebSocket credentials are missing!', {
+          hasUsername: !!credentials.username,
+          hasPassword: !!credentials.password,
+          currentConfig: this.currentConfig,
+          appConfig: appConfig
+        })
+        safeReject(new Error('WebSocket username and password are required'))
+        return
+      }
+
+      // Store credentials for reuse in fallback scenarios
+      wsCredentials = { ...credentials }
+      
+      const response = await fetch(appConfig.websocket.authEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Important: include cookies
+        body: JSON.stringify(credentials)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        console.log('[SSHClient] HTTP authentication successful!')
+        console.log('[SSHClient] User:', result.user)
+        
+        // Now WebSocket should be automatically authenticated via cookie
+        // Wait a moment for the WebSocket to process the cookie
+        setTimeout(() => {
+          if (!this.isAuthenticated) {
+            console.log('[SSHClient] WebSocket not authenticated via cookie, trying manual auth...')
+            // Fallback to manual WebSocket authentication using stored credentials
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+              console.log('[SSHClient] Sending manual auth with stored credentials:', {
+                username: wsCredentials.username,
+                password: wsCredentials.password ? '[REDACTED]' : '[EMPTY]'
+              })
+              this.ws.send(JSON.stringify({
+                type: 'auth',
+                username: wsCredentials.username,
+                password: wsCredentials.password
+              }))
+            }
+          }
+        }, 1000)
+      } else {
+        console.error('[SSHClient] HTTP authentication failed:', result.error)
+        // Fallback to manual WebSocket authentication using stored credentials
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          console.log('[SSHClient] Sending fallback auth with stored credentials:', {
+            username: wsCredentials.username,
+            password: wsCredentials.password ? '[REDACTED]' : '[EMPTY]'
+          })
+          this.ws.send(JSON.stringify({
+            type: 'auth',
+            username: wsCredentials.username,
+            password: wsCredentials.password
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('[SSHClient] HTTP authentication error:', error)
+      // Fallback to manual WebSocket authentication using stored credentials
+      if (this.ws && this.ws.readyState === WebSocket.OPEN && wsCredentials) {
+        console.log('[SSHClient] Sending error fallback auth with stored credentials:', {
+          username: wsCredentials.username,
+          password: wsCredentials.password ? '[REDACTED]' : '[EMPTY]'
+        })
+        this.ws.send(JSON.stringify({
+          type: 'auth',
+          username: wsCredentials.username,
+          password: wsCredentials.password
+        }))
+      } else if (!wsCredentials) {
+        console.error('[SSHClient] No credentials available for fallback authentication')
+      }
+    }
+  }
+
+  private handleMessage(message: any, safeResolve: () => void, safeReject: (error: Error) => void) {
+    switch (message.type) {
+      case 'auth_success':
+        console.log('[SSHClient] Authentication successful!')
+        console.log('[SSHClient] Token:', message.token)
+        console.log('[SSHClient] User:', message.user)
+        this.isAuthenticated = true
+        
+        // Now perform SSH connection
+        setTimeout(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentConfig) {
+            this.ws.send(JSON.stringify({
+              type: 'connect',
+              config: {
+                host: this.currentConfig.host,
+                port: this.currentConfig.port,
+                username: this.currentConfig.username,
+                authMethod: this.currentConfig.authMethod,
+                password: this.currentConfig.password
+              }
+            }))
+          }
+        }, 1000)
+        break
+        
+      case 'connected':
+        console.log('[SSHClient] SSH connection established')
+        safeResolve()
+        break
+        
+      case 'data':
+        console.log('[SSHClient] SSH output:', message.data)
+        this.dataCallbacks.forEach(callback => callback(message.data))
+        break
+        
+      case 'error':
+        console.error('[SSHClient] Error:', message.error)
+        this.dataCallbacks.forEach(callback => callback(`\r\nSSH Error: ${message.error}\r\n`))
+        break
+        
+      case 'ping':
+        // Respond to ping
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'pong' }))
+        }
+        break
+        
+      case 'pong':
+        console.log('[SSHClient] Received pong')
+        break
+        
+      case 'status':
+        console.log('[SSHClient] Server status:', message.data)
+        break
+        
+      case 'token_refreshed':
+        console.log('[SSHClient] Token refreshed:', message.token)
+        break
+        
+      default:
+        console.log('[SSHClient] Unknown message type:', message.type, message)
+    }
   }
 
   disconnect(): void {
@@ -230,10 +332,12 @@ export class SSHClient implements ISSHClient {
     
     this.connected = false
     this.connecting = false
+    this.isAuthenticated = false
+    this.currentConfig = null
   }
 
   send(data: string): void {
-    if (this.ws && this.connected && this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.connected && this.ws.readyState === WebSocket.OPEN && this.isAuthenticated) {
       try {
         console.log('[SSHClient] Sending data to server:', data.replace(/\r/g, '\\r').replace(/\n/g, '\\n'))
         this.ws.send(JSON.stringify({
@@ -245,9 +349,10 @@ export class SSHClient implements ISSHClient {
         this.connected = false
       }
     } else {
-      console.warn('[SSHClient] Cannot send data: Not connected or WebSocket not open', {
+      console.warn('[SSHClient] Cannot send data: Not connected, not authenticated, or WebSocket not open', {
         hasWs: !!this.ws,
         connected: this.connected,
+        authenticated: this.isAuthenticated,
         readyState: this.ws?.readyState
       })
     }
@@ -262,7 +367,7 @@ export class SSHClient implements ISSHClient {
   }
 
   isConnected(): boolean {
-    return this.connected && this.ws !== null && this.ws.readyState === WebSocket.OPEN
+    return this.connected && this.isAuthenticated && this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 
   // Remove callback to prevent memory leaks
@@ -279,5 +384,13 @@ export class SSHClient implements ISSHClient {
       this.closeCallbacks.splice(index, 1)
     }
   }
-}
 
+  // Send ping every 30 seconds for connection keep-alive
+  startPingInterval(): void {
+    setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }))
+      }
+    }, 30000)
+  }
+}
