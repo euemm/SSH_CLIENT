@@ -1,9 +1,20 @@
+'use client'
+
 import { useState } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import dynamic from 'next/dynamic'
 import styled from 'styled-components'
-import ConnectionForm from './components/ConnectionForm'
-import TerminalView from './components/TerminalView'
-import { ConnectionConfig } from './types/ssh'
+import { ConnectionConfig } from '../src/types/ssh'
+
+// Dynamic imports to prevent SSR issues with xterm.js
+const ConnectionForm = dynamic(() => import('../src/components/ConnectionForm'), {
+  ssr: false,
+  loading: () => <div>Loading...</div>
+})
+
+const TerminalView = dynamic(() => import('../src/components/TerminalView'), {
+  ssr: false,
+  loading: () => <div>Loading terminal...</div>
+})
 
 const AppContainer = styled.div`
   height: 100vh;
@@ -102,7 +113,7 @@ const MainContent = styled.main`
   z-index: 10;
 `
 
-function App() {
+export default function Home() {
   const [connection, setConnection] = useState<ConnectionConfig | null>(null)
 
   const handleConnection = (config: ConnectionConfig) => {
@@ -139,40 +150,28 @@ function App() {
   ]
 
   return (
-    <Router>
-      <AppContainer>
-        {bubbles.map((bubble, index) => (
-          <Bubble
-            key={index}
-            $color={bubble.color}
-            $size={bubble.size}
-            $delay={bubble.delay}
-            $duration={bubble.duration}
-            $animation={bubble.animation}
-            $left={bubble.left}
+    <AppContainer>
+      {bubbles.map((bubble, index) => (
+        <Bubble
+          key={index}
+          $color={bubble.color}
+          $size={bubble.size}
+          $delay={bubble.delay}
+          $duration={bubble.duration}
+          $animation={bubble.animation}
+          $left={bubble.left}
+        />
+      ))}
+      <MainContent>
+        {connection ? (
+          <TerminalView 
+            connection={connection} 
+            onDisconnect={handleDisconnect}
           />
-        ))}
-        <MainContent>
-          <Routes>
-            <Route 
-              path="/" 
-              element={
-                connection ? (
-                  <TerminalView 
-                    connection={connection} 
-                    onDisconnect={handleDisconnect}
-                  />
-                ) : (
-                  <ConnectionForm onConnect={handleConnection} />
-                )
-              } 
-            />
-          </Routes>
-        </MainContent>
-      </AppContainer>
-    </Router>
+        ) : (
+          <ConnectionForm onConnect={handleConnection} />
+        )}
+      </MainContent>
+    </AppContainer>
   )
 }
-
-export default App
-

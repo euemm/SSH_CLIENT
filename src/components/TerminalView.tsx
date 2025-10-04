@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Terminal } from 'xterm'
-import { FitAddon } from 'xterm-addon-fit'
-import { WebLinksAddon } from 'xterm-addon-web-links'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import styled from 'styled-components'
 import { ConnectionConfig } from '../types/ssh'
 import { SSHClient } from '../services/SSHClient'
 import { LogOut } from 'lucide-react'
-import 'xterm/css/xterm.css'
+// xterm.css will be imported via layout.tsx
 
 const TerminalContainer = styled.div`
   flex: 1;
