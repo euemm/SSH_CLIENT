@@ -5,10 +5,53 @@ import { Lock, User, Server } from 'lucide-react'
 
 const FormContainer = styled.div`
   height: 100%;
+  min-height: 0; /* Important for flex children to scroll properly */
   display: flex;
   flex-direction: column;
   position: relative;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+`
+
+const TitlePanel = styled.div`
+  flex-shrink: 0;
+  position: relative;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  padding-top: calc(0.65rem + env(safe-area-inset-top));
+  background: linear-gradient(
+    to bottom,
+    var(--lg-surface) 0%,
+    var(--lg-surface) 50%,
+    color-mix(in srgb, var(--lg-surface) 85%, transparent) 100%
+  );
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
+  border-bottom: 1px solid var(--lg-stroke);
+  box-shadow: 0 4px 20px var(--lg-shadow);
+  text-align: center;
+  
+  @media (prefers-color-scheme: dark) {
+    background: linear-gradient(
+      to bottom,
+      oklch(18% 0 0) 0%,
+      oklch(18% 0 0 / 0.5) 30%,
+      oklch(18% 0 0 / 0.2) 100%
+    );
+  }
+  
+  @media (prefers-color-scheme: light) {
+    background: linear-gradient(
+      to bottom,
+      oklch(100% 0 0) 0%,
+      oklch(100% 0 0 / 0.5) 30%,
+      oklch(100% 0 0 / 0.2) 100%
+    );
+  }
+  
+  @media (max-width: 768px) {
+    padding: 0.5rem 0.75rem;
+    padding-top: calc(0.5rem + max(12px, env(safe-area-inset-top)));
+  }
 `
 
 const FormContent = styled.div`
@@ -16,8 +59,10 @@ const FormContent = styled.div`
   max-width: 500px;
   width: 100%;
   margin: 0 auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0; /* Important for flex children to scroll properly */
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -27,23 +72,7 @@ const FormContent = styled.div`
     padding: 1.5rem 0.75rem;
     gap: 1rem;
     max-width: 100%;
-  }
-`
-
-const TitlePanel = styled.div`
-  background: var(--lg-surface);
-  backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-  border: 1px solid var(--lg-stroke);
-  border-radius: var(--lg-radius);
-  padding: 1rem;
-  margin-bottom: 1.25rem;
-  box-shadow: 0 2px 8px var(--lg-shadow);
-  text-align: center;
-  
-  @media (max-width: 768px) {
-    padding: 0.85rem;
-    margin-bottom: 1rem;
+    justify-content: flex-start;
   }
 `
 
@@ -70,16 +99,16 @@ const Title = styled.h2`
 const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 1.25rem;
+  gap: 0.3rem;
+  margin-top: 1rem;
   
   &:first-child {
     margin-top: 0;
   }
   
   @media (max-width: 768px) {
-    gap: 0.35rem;
-    margin-top: 1rem;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
   }
 `
 
@@ -154,19 +183,43 @@ const Input = styled.input`
 `
 
 const ButtonContainer = styled.div`
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 1rem;
-  background: var(--lg-surface);
+  flex-shrink: 0;
+  position: relative;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to top,
+    var(--lg-surface) 0%,
+    var(--lg-surface) 50%,
+    color-mix(in srgb, var(--lg-surface) 85%, transparent) 100%
+  );
   backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
   border-top: 1px solid var(--lg-stroke);
   box-shadow: 0 -4px 20px var(--lg-shadow);
   
+  @media (prefers-color-scheme: dark) {
+    background: linear-gradient(
+      to top,
+      oklch(18% 0 0) 0%,
+      oklch(18% 0 0 / 0.5) 30%,
+      oklch(18% 0 0 / 0.2) 100%
+    );
+  }
+  
+  @media (prefers-color-scheme: light) {
+    background: linear-gradient(
+      to top,
+      oklch(100% 0 0) 0%,
+      oklch(100% 0 0 / 0.5) 30%,
+      oklch(100% 0 0 / 0.2) 100%
+    );
+  }
+  
   @media (max-width: 768px) {
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    padding-bottom: calc(0.4rem + max(12px, env(safe-area-inset-bottom)));
   }
 `
 
@@ -342,12 +395,12 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
 
   return (
     <FormContainer>
+      <TitlePanel>
+        <Title>SSH Connection</Title>
+      </TitlePanel>
+      
       <FormContent>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'inherit' }}>
-          <TitlePanel>
-            <Title>SSH Connection</Title>
-          </TitlePanel>
-          
           <FormGroup>
             <Label>
               <Server size={16} />

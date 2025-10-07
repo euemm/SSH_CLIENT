@@ -10,6 +10,13 @@ export const metadata: Metadata = {
   title: 'SSH Client',
   description: 'Modern SSH client built with Next.js',
   manifest: '/site.webmanifest',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover',
+  },
   icons: {
     icon: [
       { url: '/icons/EUEM_LIGHT.png', media: '(prefers-color-scheme: light)' },
@@ -26,8 +33,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" style={{ height: '100%' }}>
+      <body className={inter.className} style={{ height: '100%', margin: 0, overflow: 'hidden' }}>{children}</body>
     </html>
   )
 }

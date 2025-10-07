@@ -18,12 +18,18 @@ const TerminalView = dynamic(() => import('../src/components/TerminalView'), {
 
 const AppContainer = styled.div`
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile browsers */
   width: 100vw;
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  
+  @supports (-webkit-touch-callout: none) {
+    /* iOS Safari specific fix */
+    min-height: -webkit-fill-available;
+  }
   
   &::before {
     content: '';
