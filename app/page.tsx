@@ -26,6 +26,16 @@ const AppContainer = styled.div`
   overflow: hidden;
   background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
   
+
+  @media (prefers-color-scheme: dark) {
+    background: linear-gradient(
+      to bottom,
+rgb(24, 26, 29) 0%,
+rgb(14, 9, 9) 100%
+    );
+  }
+  
+
   @supports (-webkit-touch-callout: none) {
     /* iOS Safari specific fix */
     min-height: -webkit-fill-available;
@@ -94,9 +104,9 @@ const AppContainer = styled.div`
   }
 `
 
-const Bubble = styled.div<{ $color: string; $size: number; $delay: number; $duration: number; $animation: string; $left: number }>`
+const Bubble = styled.div<{ $color: string; $size: number; $delay: number; $duration: number; $animation: string; $left: number; $animationsEnabled: boolean }>`
   position: absolute;
-  bottom: -200px;
+  bottom: -300px;
   left: ${props => props.$left}%;
   width: ${props => props.$size}px;
   height: ${props => props.$size}px;
@@ -106,6 +116,7 @@ const Bubble = styled.div<{ $color: string; $size: number; $delay: number; $dura
     0 0 ${props => props.$size / 3}px ${props => props.$color}80,
     0 0 ${props => props.$size}px ${props => props.$color}40;
   animation: ${props => props.$animation} ${props => props.$duration}s linear infinite;
+  animation-play-state: ${props => props.$animationsEnabled ? 'running' : 'paused'};
   animation-delay: ${props => props.$delay}s;
   z-index: 1;
 `
@@ -121,6 +132,7 @@ const MainContent = styled.main`
 
 export default function Home() {
   const [connection, setConnection] = useState<ConnectionConfig | null>(null)
+  const [animationsEnabled, setAnimationsEnabled] = useState(true)
 
   const handleConnection = (config: ConnectionConfig) => {
     console.log('[App] Received connection request:', {
@@ -148,23 +160,22 @@ export default function Home() {
     setConnection(null)
   }
 
+  const handleToggleAnimation = () => {
+    setAnimationsEnabled(prev => !prev)
+  }
+
   // Generate bubbles with different properties - bigger and slower
   const bubbles = useMemo(() => [
-    // Red/Pink bubbles
-    { color: '#ff6b6b', size: 250, delay: 0, duration: 20, animation: 'rise', left: 25 },
-    { color: '#ff9ff3', size: 200, delay: 8, duration: 22, animation: 'rise2', left: 65 },
     
-    // Blue/Cyan bubbles
-    { color: '#4ecdc4', size: 280, delay: 4, duration: 18, animation: 'rise2', left: 45 },
-    { color: '#45b7d1', size: 220, delay: 12, duration: 24, animation: 'rise', left: 85 },
+    { color: '#ff6b6b', size: 250, delay: 0, duration: 20, animation: 'rise', left: Math.floor(100 / 7) * 0 },
+    { color: '#96ceb4', size: 260, delay: 6, duration: 19, animation: 'rise', left: Math.floor(100 / 7) * 1 },
+    { color: '#ff9ff3', size: 200, delay: 8, duration: 22, animation: 'rise2', left: Math.floor(100 / 7) * 2 },
+    { color: '#6248d9', size: 240, delay: 2, duration: 23, animation: 'rise3', left: Math.floor(100 / 7) * 3 },
+    { color: '#4ecdc4', size: 280, delay: 4, duration: 18, animation: 'rise2', left: Math.floor(100 / 7) * 4 },
+    { color: '#45b7d1', size: 220, delay: 12, duration: 24, animation: 'rise', left: Math.floor(100 / 7) * 5 },
+    { color: '#feca57', size: 210, delay: 14, duration: 21, animation: 'rise3', left: Math.floor(100 / 7) * 6 },
+    { color: '#a55eea', size: 190, delay: 10, duration: 17, animation: 'rise2', left: Math.floor(100 / 7) * 7 }
     
-    // Green/Yellow bubbles
-    { color: '#96ceb4', size: 260, delay: 6, duration: 19, animation: 'rise', left: 15 },
-    { color: '#feca57', size: 210, delay: 14, duration: 21, animation: 'rise3', left: 75 },
-    
-    // Purple bubbles
-    { color: '#5f27cd', size: 240, delay: 2, duration: 23, animation: 'rise3', left: 55 },
-    { color: '#a55eea', size: 190, delay: 10, duration: 17, animation: 'rise2', left: 95 }
   ], [])
 
   return (
@@ -178,6 +189,7 @@ export default function Home() {
           $duration={bubble.duration}
           $animation={bubble.animation}
           $left={bubble.left}
+          $animationsEnabled={animationsEnabled}
         />
       ))}
       <MainContent>
@@ -185,9 +197,15 @@ export default function Home() {
           <TerminalView 
             connection={connection} 
             onDisconnect={handleDisconnect}
+            onStopAnimation={handleToggleAnimation}
+            animationsEnabled={animationsEnabled}
           />
         ) : (
-          <ConnectionForm onConnect={handleConnection} />
+          <ConnectionForm 
+            onConnect={handleConnection}
+            onToggleAnimation={handleToggleAnimation}
+            animationsEnabled={animationsEnabled}
+          />
         )}
       </MainContent>
     </AppContainer>

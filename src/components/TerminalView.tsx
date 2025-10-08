@@ -5,17 +5,16 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import styled from 'styled-components'
 import { ConnectionConfig } from '../types/ssh'
 import { SSHClient } from '../services/SSHClient'
-import { LogOut } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 // xterm.css will be imported via layout.tsx
 
 const TerminalContainer = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   margin: 1rem;
-  border-radius: var(--lg-radius);
   
   @media (max-width: 768px) {
     margin: 0.5rem;
@@ -25,26 +24,60 @@ const TerminalContainer = styled.div`
 `
 
 const TerminalHeader = styled.div`
-  background: var(--lg-surface);
+  flex-shrink: 0;
+  position: absolute;
+  top: -1rem;
+  left: -1rem;
+  right: -1rem;
+  padding: 0.75rem 1rem;
+  padding-top: calc(0.75rem + env(safe-area-inset-top));
+  background: linear-gradient(
+    to bottom,
+    var(--lg-surface) 0%,
+    var(--lg-surface) 50%,
+    color-mix(in srgb, var(--lg-surface) 85%, transparent) 100%
+  );
   backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--lg-stroke);
-  border-top-left-radius: var(--lg-radius);
-  border-top-right-radius: var(--lg-radius);
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 50px;
-  box-shadow: 0 2px 8px var(--lg-shadow);
+  box-shadow: 0 4px 20px var(--lg-shadow);
+  z-index: 10;
+  
+  @media (prefers-color-scheme: dark) {
+    background: linear-gradient(
+      to bottom,
+      oklch(18% 0 0) 0%,
+      oklch(18% 0 0 / 0.5) 30%,
+      oklch(18% 0 0 / 0.2) 100%
+    );
+  }
+  
+  @media (prefers-color-scheme: light) {
+    background: linear-gradient(
+      to bottom,
+      oklch(100% 0 0) 0%,
+      oklch(100% 0 0 / 0.5) 30%,
+      oklch(100% 0 0 / 0.2) 100%
+    );
+  }
   
   @media (max-width: 768px) {
+    // top: -0.5rem;
+    left: -0.5rem;
+    right: -0.5rem;
     padding: 0.6rem 0.75rem;
-    min-height: 44px;
+    // padding-top: calc(0.6rem + max(12px, env(safe-area-inset-top)));
+    // min-height: 44px;
   }
 `
 
 const ConnectionInfo = styled.div`
+  margin-left: 1rem;
+  margin-top: 1rem;
   font-size: 0.8rem;
   font-weight: 500;
   display: flex;
@@ -55,9 +88,11 @@ const ConnectionInfo = styled.div`
   white-space: nowrap;
   flex: 1;
   letter-spacing: -0.01em;
+  min-width: 0; /* Allow flex item to shrink below content size */
   
   @media (prefers-color-scheme: dark) {
     color: oklch(92% 0 0);
+    text-shadow: 0 1px 2px rgba(0,0,0,.2);
   }
   
   @media (prefers-color-scheme: light) {
@@ -76,6 +111,8 @@ const TerminalActions = styled.div`
 `
 
 const ActionButton = styled.button`
+  margin-right: 0.5rem;
+  margin-top: 1rem;
   background: var(--lg-surface);
   backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
@@ -124,9 +161,15 @@ const ActionButton = styled.button`
 const TerminalWrapper = styled.div`
   flex: 1;
   padding: 0.75rem;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: transparent;
   position: relative;
+  margin-top: 63px; /* Space for the absolute positioned header */
+  box-sizing: initial;
+  border-radius: calc(var(--lg-radius) - 6px);
+  border: 1px solid var(--lg-stroke);
+  white-space: nowrap; /* Prevent line wrapping */
   
   &::before {
     content: '';
@@ -135,50 +178,44 @@ const TerminalWrapper = styled.div`
     background: var(--lg-surface);
     backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
     -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
+    border-radius: calc(var(--lg-radius) - 6px);
     z-index: 0;
   }
   
   & > * {
     position: relative;
     z-index: 1;
+    white-space: nowrap; /* Ensure terminal content doesn't wrap */
+  }
+  
+  /* Custom scrollbar styling */
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
   }
   
   @media (max-width: 768px) {
     padding: 0.5rem;
-    padding-bottom: 0;
     margin-bottom: 0;
+    margin-top: 63px; /* Space for mobile header */
+    height: calc(100vh - 60px - 6rem - 1rem); /* Full height minus header, mobile keyboard, and container margin */
+    flex: none; /* Override flex to use fixed height */
   }
 `
 
-const StatusBar = styled.div`
-  background: var(--lg-surface);
-  backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-  padding: 0.4rem 0.85rem;
-  border-top: 1px solid var(--lg-stroke);
-  border-bottom-left-radius: var(--lg-radius);
-  border-bottom-right-radius: var(--lg-radius);
-  font-size: 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 36px;
-  box-shadow: 0 -2px 8px var(--lg-shadow);
-  
-  @media (prefers-color-scheme: dark) {
-    color: oklch(70% 0 0);
-  }
-  
-  @media (prefers-color-scheme: light) {
-    color: oklch(50% 0 0);
-  }
-  
-  @media (max-width: 768px) {
-    padding: 0.35rem 0.65rem;
-    font-size: 0.65rem;
-    min-height: 32px;
-  }
-`
 
 const MobileKeyboard = styled.div`
   background: var(--lg-surface);
@@ -254,9 +291,11 @@ const MobileKey = styled.button<{ $halfWidth?: boolean }>`
 interface TerminalViewProps {
   connection: ConnectionConfig
   onDisconnect: () => void
+  onStopAnimation?: () => void
+  animationsEnabled?: boolean
 }
 
-export default function TerminalView({ connection, onDisconnect }: TerminalViewProps) {
+export default function TerminalView({ connection, onDisconnect, onStopAnimation, animationsEnabled = true }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const terminalInstance = useRef<Terminal | null>(null)
   const fitAddon = useRef<FitAddon | null>(null)
@@ -359,10 +398,13 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 1000,
-      rows: isMobile ? 30 : 24,
-      cols: isMobile ? 60 : 80,
+      // rows: isMobile ? 30 : 24,
+      // cols: isMobile ? 60 : 80,
+      // cols: 10000000,
+      // rows: 100000000,
       lineHeight: 1.3,
-      letterSpacing: 0.3
+      letterSpacing: 0.3,
+      // isWordWrapEnabled: false,
     })
 
     const fit = new FitAddon()
@@ -391,6 +433,7 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
       }, 100)
       
       console.log('[TerminalView] Terminal initialized successfully')
+
     } catch (error) {
       console.error('[TerminalView] Failed to initialize terminal:', error)
       return
@@ -658,6 +701,9 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
           <span>{memoizedConnection.username}@{memoizedConnection.host}:{memoizedConnection.port}</span>
         </ConnectionInfo>
         <TerminalActions>
+          <ActionButton onClick={onStopAnimation || (() => {})} title={animationsEnabled ? "Pause Animation" : "Resume Animation"}>
+            <Settings size={16} />
+          </ActionButton>
           <ActionButton onClick={handleDisconnect} title="Disconnect">
             <LogOut size={16} />
           </ActionButton>
@@ -679,11 +725,6 @@ export default function TerminalView({ connection, onDisconnect }: TerminalViewP
           <MobileKey $halfWidth onClick={() => sendMobileKey('\u001b[C')}>→</MobileKey>
         </MobileKeyRow>
       </MobileKeyboard>
-
-      <StatusBar>
-        <span>{connectionStatus}</span>
-        <span>Mobile SSH Client</span>
-      </StatusBar>
     </TerminalContainer>
   )
 }

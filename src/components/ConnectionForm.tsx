@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import { ConnectionConfig } from '../types/ssh'
-import { Lock, User, Server } from 'lucide-react'
+import { Lock, User, Server, Settings } from 'lucide-react'
 
 const FormContainer = styled.div`
   height: 100%;
@@ -28,7 +28,9 @@ const TitlePanel = styled.div`
   -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
   border-bottom: 1px solid var(--lg-stroke);
   box-shadow: 0 4px 20px var(--lg-shadow);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   
   @media (prefers-color-scheme: dark) {
     background: linear-gradient(
@@ -49,8 +51,8 @@ const TitlePanel = styled.div`
   }
   
   @media (max-width: 768px) {
-    padding: 0.5rem 0.75rem;
-    padding-top: calc(0.5rem + max(12px, env(safe-area-inset-top)));
+    padding: 1rem 1rem;
+    // padding-top: calc(0.5rem + max(12px, env(safe-area-inset-top)));
   }
 `
 
@@ -93,6 +95,57 @@ const Title = styled.h2`
   
   @media (max-width: 768px) {
     font-size: 1.1rem;
+  }
+`
+
+const ActionButton = styled.button`
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--lg-surface);
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
+  border: 1px solid var(--lg-stroke);
+  border-radius: calc(var(--lg-radius) - 4px);
+  padding: 0.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--lg-duration-enter) var(--lg-ease-standard);
+  min-width: 40px;
+  min-height: 40px;
+  box-shadow: 0 2px 8px var(--lg-shadow);
+  
+  @media (prefers-color-scheme: dark) {
+    color: oklch(85% 0 0);
+  }
+  
+  @media (prefers-color-scheme: light) {
+    color: oklch(40% 0 0);
+  }
+  
+  // &:hover {
+  //   transform: translateY(-0.01px);
+  //   box-shadow: 0 4px 8px var(--lg-shadow);
+  // }
+  
+  // &:active {
+  //   // transform: scale(0.98);
+  //   // transition: transform var(--lg-duration-press) var(--lg-ease-accel);
+  // }
+  
+  @media (max-width: 768px) {
+    right: 0.75rem;
+    padding: 0.4rem;
+    min-width: 40px;
+    min-height: 40px;
+    
+    svg {
+      width: 18px;
+      height: 18px;
+    }
   }
 `
 
@@ -274,6 +327,8 @@ const ConnectButton = styled.button`
 
 interface ConnectionFormProps {
   onConnect: (config: ConnectionConfig) => void
+  onToggleAnimation?: () => void
+  animationsEnabled?: boolean
 }
 
 // Cookie utility functions
@@ -294,7 +349,7 @@ const getCookie = (name: string): string | null => {
   return null
 }
 
-export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
+export default function ConnectionForm({ onConnect, onToggleAnimation, animationsEnabled = true }: ConnectionFormProps) {
   const [host, setHost] = useState('')
   // Fixed port to 22 - removed port input
   const [username, setUsername] = useState('')
@@ -396,7 +451,12 @@ export default function ConnectionForm({ onConnect }: ConnectionFormProps) {
   return (
     <FormContainer>
       <TitlePanel>
-        <Title>SSH Connection</Title>
+        <Title>SSH Client</Title>
+        {onToggleAnimation && (
+          <ActionButton onClick={onToggleAnimation} title={animationsEnabled ? "Pause Animation" : "Resume Animation"}>
+            <Settings size={16} />
+          </ActionButton>
+        )}
       </TitlePanel>
       
       <FormContent>
