@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Serve from /ssh/ path instead of root
+  basePath: '/ssh',
   // Enable static export for deployment
   output: 'export',
   trailingSlash: true,
