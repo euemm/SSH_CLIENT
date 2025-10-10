@@ -12,7 +12,8 @@ export interface ClientConfig {
 export async function getClientConfig(): Promise<ClientConfig> {
   try {
     // In a Next.js app, we can fetch the config from the public directory
-    const response = await fetch('/config.json');
+    // Note: basePath is /ssh, so we need to include it in the fetch URL
+    const response = await fetch('/ssh/config.json');
     if (!response.ok) {
       throw new Error(`Failed to fetch config: ${response.statusText}`);
     }

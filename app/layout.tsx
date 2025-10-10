@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'SSH Client',
   description: 'Modern SSH client built with Next.js',
-  manifest: '/site.webmanifest',
+  manifest: '/ssh/site.webmanifest',
   viewport: {
     width: 'device-width',
     initialScale: 1,
@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/icons/EUEM_LIGHT.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icons/EUEM_DARK.png', media: '(prefers-color-scheme: dark)' }
+      { url: '/ssh/icons/EUEM_LIGHT.png', media: '(prefers-color-scheme: light)' },
+      { url: '/ssh/icons/EUEM_DARK.png', media: '(prefers-color-scheme: dark)' }
     ],
-    shortcut: '/favicon.ico',
-    apple: '/icons/EUEM_LIGHT.png'
+    shortcut: '/ssh/favicon.ico',
+    apple: '/ssh/icons/EUEM_LIGHT.png'
   }
 }
 
