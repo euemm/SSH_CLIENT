@@ -508,14 +508,14 @@ export default function ConnectionForm({ onConnect, onToggleAnimation, animation
           <FormGroup>
             <Label>
               <User size={16} />
-              WebSocket Username
+              WebSocket Account
             </Label>
             <Input
               type="text"
-              placeholder="admin"
+              placeholder="email@example.com"
               value={wsUsername}
               onChange={(e) => {
-                console.log('[ConnectionForm] WebSocket username changed:', e.target.value)
+                console.log('[ConnectionForm] WebSocket account changed:', e.target.value)
                 setWsUsername(e.target.value)
               }}
               required
